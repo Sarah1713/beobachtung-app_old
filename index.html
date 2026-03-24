@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Verhaltensbeobachtung</title>
+
+<style>
+body { font-family: Arial; padding: 20px; }
+button { margin: 5px; padding: 14px; font-size: 16px; border-radius: 8px; border: none; background: #e0e0e0; }
+button.active { background: #4CAF50; color: white; }
+button.stop { background: #f44336; color: white; }
+#timer { font-size: 28px; margin: 15px 0; font-weight: bold; }
+input { padding: 6px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<h2>Verhaltensbeobachtung</h2>
+
+<label>ID:</label>
+<input type="text" id="participantID">
+<br><br>
+
+<label>Neue Kategorie:</label>
+<input type="text" id="newCategory">
+<button onclick="addCategory()">Hinzufügen</button>
+
+<h3>Kategorien:</h3>
+<div id="categoryButtons"></div>
+
+<div id="timer">00:00:00.000</div>
+
+<button class="stop" onclick="stopRecording()">Aufnahme stoppen</button>
+<br><br>
+
+<button onclick="exportCSV()">CSV Export</button>
+<button onclick="clearSession()">Session löschen</button>
+
+<script>
+
+let data = JSON.parse(localStorage.getItem("sessionData")) || [];
+let currentCategory = null;
+let categoryStartTime = null;
+let startTimeString = "";
+let startDateString = "";
+let timerInterval = null;
+
+// ===== TIMER =====
+
+function startLiveTimer() {
+    timerInterval = setInterval(() => {
+        if (categoryStartTime) {
+            let diff = Date.now() - categoryStartTime;
+            document.getElementById("timer").innerText = formatTime(diff);
+        }
+    }, 10);
+}
+
+function stopLiveTimer() {
+    clearInterval(timerInterval);
+}
+
+function formatTime(ms) {
+    let h = Math.floor(ms / 3600000);
+    let m = Math.floor((ms % 3600000) / 60000);
+    let s = Math.floor((ms % 60000) / 1000);
+    let milli = ms % 1000;
+    return `${pad(h)}:${pad(m)}:${pad(s)}.${milli.toString().padStart(3, '0')}`;
+}
+
+function pad(n) {
+    return n.toString().padStart(2, '0');
+}
+
+// ===== KATEGORIEN =====
+
+function addCategory() {
+    let name = document.getElementById("newCategory").value.trim();
+    if (!name) return;
+
+    let categories = JSON.parse(localStorage.getItem("categories")) || [];
+    categories.push(name);
+    localStorage.setItem("categories", JSON.stringify(categories));
+
+    document.getElementById("newCategory").value = "";
+    loadCategories();
+}
+
+function loadCategories() {
+    let container = document.getElementById("categoryButtons");
+    container.innerHTML = "";
+
+    let categories = JSON.parse(localStorage.getItem("categories")) || [];
+
+    categories.forEach(cat => {
+        let btn = document.createElement("button");
+        btn.innerText = cat;
+        btn.onclick = () => switchCategory(cat, btn);
+        container.appendChild(btn);
+    });
+}
+
+function switchCategory(newCategory, buttonElement) {
+
+    let participantID = document.getElementById("participantID").value.trim();
+    if (!participantID) {
+        alert("Bitte zuerst eine ID eingeben.");
+        return;
+    }
+
+    let now = Date.now();
+    let nowObj = new Date(now);
+
+    if (currentCategory !== null) {
+        saveCurrentCategory(nowObj);
+    }
+
+    document.querySelectorAll("#categoryButtons button")
+        .forEach(btn => btn.classList.remove("active"));
+
+    if (buttonElement) buttonElement.classList.add("active");
+
+    currentCategory = newCategory;
+    categoryStartTime = now;
+    startTimeString = nowObj.toLocaleTimeString('de-DE') + "." + nowObj.getMilliseconds();
+    startDateString = nowObj.toLocaleDateString('de-DE');
+
+    document.getElementById("timer").innerText = "00:00:00.000";
+}
+
+function stopRecording() {
+    if (currentCategory !== null) {
+        let nowObj = new Date();
+        saveCurrentCategory(nowObj);
+    }
+
+    currentCategory = null;
+    categoryStartTime = null;
+    stopLiveTimer();
+
+    document.querySelectorAll("#categoryButtons button")
+        .forEach(btn => btn.classList.remove("active"));
+
+    document.getElementById("timer").innerText = "00:00:00.000";
+}
+
+function saveCurrentCategory(nowObj) {
+    let now = nowObj.getTime();
+    let duration = now - categoryStartTime;
+
+    data.push({
+        ID: document.getElementById("participantID").value,
+        Kategorie: currentCategory,
+        DauerMS: duration,
+        Dauer: formatTime(duration),
+        Startzeit: startTimeString,
+        Endzeit: nowObj.toLocaleTimeString('de-DE') + "." + nowObj.getMilliseconds(),
+        Datum: startDateString
+    });
+
+    localStorage.setItem("sessionData", JSON.stringify(data));
+}
+
+// ===== CSV EXPORT =====
+
+function exportCSV() {
+
+    stopRecording();
+
+    if (data.length === 0) {
+        alert("Keine Daten vorhanden.");
+        return;
+    }
+
+    let participantID = document.getElementById("participantID").value;
+    let today = new Date().toLocaleDateString('de-DE').replace(/\./g, "-");
+
+    let csv = "ID,Kategorie,Dauer,Startzeit,Endzeit,Datum\n";
+
+    data.forEach(row => {
+        csv += `${row.ID},${row.Kategorie},${row.Dauer},${row.Startzeit},${row.Endzeit},${row.Datum}\n`;
+    });
+
+    // ===== Zusammenfassung =====
+
+    let summary = {};
+    data.forEach(row => {
+        if (!summary[row.Kategorie]) summary[row.Kategorie] = 0;
+        summary[row.Kategorie] += row.DauerMS;
+    });
+
+    csv += "\n\nZusammenfassung\nKategorie,Gesamtdauer\n";
+
+    for (let cat in summary) {
+        csv += `${cat},${formatTime(summary[cat])}\n`;
+    }
+
+    let blob = new Blob([csv], { type: 'text/csv' });
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = participantID + "_" + today + ".csv";
+    a.click();
+}
+
+// ===== SESSION =====
+
+function clearSession() {
+    if (confirm("Session wirklich löschen?")) {
+        data = [];
+        localStorage.removeItem("sessionData");
+        location.reload();
+    }
+}
+
+// ===== INIT =====
+
+loadCategories();
+startLiveTimer();
+
+</script>
+</body>
+</html>
