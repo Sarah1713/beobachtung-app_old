@@ -3,8 +3,8 @@
   "short_name": "MOMENT",
   "start_url": "index.html",
   "display": "fullscreen",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "theme_color": "#309394",
   "orientation": "portrait",
   "icons": [
     {
