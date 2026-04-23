@@ -1,8 +1,8 @@
 {
-  "name": "MOMENT Lab Timer",
+  "name": "MOMENT Logger",
   "short_name": "MOMENT",
-  "start_url": "index.html",
-  "display": "fullscreen",
+  "start_url": "./index.html",
+  "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#309394",
   "orientation": "portrait",
